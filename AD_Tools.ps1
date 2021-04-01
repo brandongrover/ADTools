@@ -77,7 +77,7 @@ while($run -eq "y") {
 
     #4
     if($selector -eq "4") {
-        $samName = Read-Host -Prompt "Enter the SameAccountName"
+        $samName = Read-Host -Prompt "Enter the SamAccountName"
         $user = Get-ADUser -Filter 'SamAccountName -like $samName'
         echo $user
         Write-Host $item2.padright(99,'-')     
