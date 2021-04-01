@@ -106,7 +106,6 @@ while($run -eq "y") {
         Write-Host ""
         Write-Host "Members"
         Write-Host "-------"
-        #Start-Sleep -Milliseconds 1000 #Remediate issue with starting identity lookup before var is committed?
         $groupResults = (Get-ADGroupMember -Identity $groupName).name
         echo $groupResults
 
