@@ -7,27 +7,28 @@ Write-Host $item.padright(99,'*')
 Write-Host $item.padright(36,"*")" Active Directory Toolkit "$item.padright(35,"*")
 Write-Host $item.padright(99,'*')
 $run = "y"
-$date = Get-Date -Format yyyyMMdd
-$date2 = date
+
 
 #options
 while($run -eq "y") {
     Write-Host "1) GPOs modified today"
     Write-Host "2) Search GPO by GUID"
     Write-Host "3) Search GPO by Name"
-    Write-Host "4) SamAccountName Lookup"
+    Write-Host "4) User MID Lookup"
     Write-Host "5) Group Lookup"
     Write-Host "6) Device Lookup"
-    Write-Host "7) To do List"
+    Write-Host "7) Audit User Attribute Changes"
+    Write-Host "8) Audit Group Attribute Changes"
     Write-Host ""
-
+    $date = Get-Date -Format yyyyMMdd
+    $date2 = date
     #selector
     $selector = Read-Host -Prompt "Select an option"
     Write-Host $item2.padright(99,'-')
     #1
     if($selector -eq "1") {
         $gpoResult = Get-GPO -All | Where-Object {$_.ModificationTime.Day -like $date2.Day -and $_.ModificationTime.Month -like $date2.Month -and $_.ModificationTime.Year -like $date2.Year}
-        echo $gpoResult
+        echo $gpoResult | Out-GridView
 
         #Output Option
         $outputSelector = Read-Host -Prompt "Would you like to export results? [y/n]"
@@ -41,7 +42,7 @@ while($run -eq "y") {
         $guid = Read-Host -Prompt "Enter the GUID"
         Write-Host ""
         $gpoResult = Get-GPO -Guid $guid
-        echo $gpoResult
+        echo $gpoResult  | Out-GridView
 
         #Output Option
         $outputSelector = Read-Host -Prompt "Would you like to export results? [y/n]"
@@ -66,7 +67,7 @@ while($run -eq "y") {
         } else {
             $gpoResult = Get-GPO -Name $gpoName
         }
-        echo $gpoResult
+        echo $gpoResult  | Out-GridView
 
         #Output Option
         $outputSelector = Read-Host -Prompt "Would you like to export results? [y/n]"
@@ -77,15 +78,15 @@ while($run -eq "y") {
 
     #4
     if($selector -eq "4") {
-        $samName = Read-Host -Prompt "Enter the SamAccountName"
-        $user = Get-ADUser -Filter 'SamAccountName -like $samName'
-        echo $user
+        $MID = Read-Host -Prompt "Enter the MID"
+        $user = Get-ADUser -Filter 'SamAccountName -like $MID' -Properties *
+        echo $user | Select -Property * | Out-GridView
         Write-Host $item2.padright(99,'-')     
         $userOption1 = Read-Host -Prompt "Would you like to view users groups? [y/n]"
         
         if($userOption1 -eq "y") {
             Write-Host $item2.padright(99,'-')
-            $groups = Get-ADUser -Filter 'SamAccountName -like $samName' -Properties MemberOf | select MemberOf
+            $groups = Get-ADUser -Filter 'SamAccountName -like $MID' -Properties MemberOf | select MemberOf
             $groupsSplit = (($groups.memberof).split(",") | where-object {$_.contains("CN=")}).replace("CN=","")
             echo $GroupsSplit
             Write-Host $item2.padright(99,'-')
@@ -106,8 +107,9 @@ while($run -eq "y") {
         Write-Host ""
         Write-Host "Members"
         Write-Host "-------"
+        #Start-Sleep -Milliseconds 1000 #Remediate issue with starting identity lookup before var is committed?
         $groupResults = (Get-ADGroupMember -Identity $groupName).name
-        echo $groupResults
+        echo $groupResults | Out-GridView
 
         Write-Host $item2.padright(99,'-')
         
@@ -134,7 +136,7 @@ while($run -eq "y") {
             $ownerString = "*" + $assetLookup
             $assetResult = Get-ADComputer -Filter {Description -like $ownerString} -Properties *
         }
-        echo $assetResult
+        echo $assetResult | Out-GridView
 
         #Output Option
         $outputSelector = Read-Host -Prompt "Would you like to export results? [y/n]"
@@ -151,12 +153,36 @@ while($run -eq "y") {
 
     #7
     if($selector -eq "7") {
-        Write-Host "1) End of Employment verification"
-        Write-Host "2) Open to suggestions.."
-        Write-Host ""
-        Write-Host $item2.padright(99,'-')
+        $MID = Read-Host -Prompt "Enter the MID"
+        $userAttrib = Get-AdReplicationAttributeMetadata -Object (Get-AdUser $MID) -Server PRCSADDSDC1 -Properties *  -IncludeDeletedObjects –ShowAllLinkedValues | Select -Property LastOriginatingChangeTime, AttributeName, AttributeValue, LastOriginatingChangeDirectoryServerIdentity, LastOriginatingChangeUsn, LastOriginatingDeleteTime, LocalChangeUsn, Object, Server, Version | Sort-Object -Property LastOriginatingChangeTime | Out-GridView
+
+        echo $userAttrib
+        Write-Host $item2.padright(99,'-')     
+
+   
+        #Output Option
+        $outputSelector = Read-Host -Prompt "Would you like to export results? [y/n]"
+        if($outputSelector -eq "y") {
+           $userAttrib | Select -Property LastOriginatingChangeTime, AttributeName, AttributeValue, LastOriginatingChangeDirectoryServerIdentity, LastOriginatingChangeUsn, LastOriginatingDeleteTime, LocalChangeUsn, Object, Server, Version | Sort-Object -Property LastOriginatingChangeTime  | Export-Csv -Delimiter ',' -Path .\Exports\'Users&Groups'\$MID-UserChanges-$date.csv -NoTypeInformation
+        }
     }
 
+    #8
+    if($selector -eq "8") {
+        $GID = Read-Host -Prompt "Enter the GID"
+        $groupAttrib = Get-AdReplicationAttributeMetadata -Object (Get-ADGroup $GID) -Server PRCSADDSDC1 -Properties * -IncludeDeletedObjects –ShowAllLinkedValues | Sort-Object -Property LastOriginatingChangeTime | Out-GridView
+
+        echo $groupAttrib
+        Write-Host $item2.padright(99,'-')     
+
+   
+        #Output Option
+        $outputSelector = Read-Host -Prompt "Would you like to export results? [y/n]"
+        if($outputSelector -eq "y") {
+           $groupAttrib | Select -Property LastOriginatingChangeTime, AttributeName, AttributeValue, LastOriginatingChangeDirectoryServerIdentity, LastOriginatingChangeUsn, LastOriginatingDeleteTime, LocalChangeUsn, Object, Server, Version | Sort-Object -Property LastOriginatingChangeTime | Export-Csv -Delimiter ',' -Path .\Exports\'Users&Groups'\$GID-GroupChanges-$date.csv -NoTypeInformation
+        }
+    }
+    Remove-Variable gpoResult, GroupsSplit, groups, user, groupResults, outputSelector, assetResult, userAttrib, groupAttrib -ErrorAction SilentlyContinue
     $run = Read-Host -Prompt "Would you like to search again? [y/n]"
     Write-Host $item2.padright(99,'-')
 }
