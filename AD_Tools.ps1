@@ -7,6 +7,7 @@ Write-Host $item.padright(99,'*')
 Write-Host $item.padright(36,"*")" Active Directory Toolkit "$item.padright(35,"*")
 Write-Host $item.padright(99,'*')
 $run = "y"
+$domainController = ""
 
 
 #options
@@ -14,7 +15,7 @@ while($run -eq "y") {
     Write-Host "1) GPOs modified today"
     Write-Host "2) Search GPO by GUID"
     Write-Host "3) Search GPO by Name"
-    Write-Host "4) User MID Lookup"
+    Write-Host "4) User ID Lookup"
     Write-Host "5) Group Lookup"
     Write-Host "6) Device Lookup"
     Write-Host "7) Audit User Attribute Changes"
@@ -78,15 +79,15 @@ while($run -eq "y") {
 
     #4
     if($selector -eq "4") {
-        $MID = Read-Host -Prompt "Enter the MID"
-        $user = Get-ADUser -Filter 'SamAccountName -like $MID' -Properties *
+        $ID = Read-Host -Prompt "Enter the ID"
+        $user = Get-ADUser -Filter 'SamAccountName -like $ID' -Properties *
         echo $user | Select -Property * | Out-GridView
         Write-Host $item2.padright(99,'-')     
         $userOption1 = Read-Host -Prompt "Would you like to view users groups? [y/n]"
         
         if($userOption1 -eq "y") {
             Write-Host $item2.padright(99,'-')
-            $groups = Get-ADUser -Filter 'SamAccountName -like $MID' -Properties MemberOf | select MemberOf
+            $groups = Get-ADUser -Filter 'SamAccountName -like $ID' -Properties MemberOf | select MemberOf
             $groupsSplit = (($groups.memberof).split(",") | where-object {$_.contains("CN=")}).replace("CN=","")
             echo $GroupsSplit
             Write-Host $item2.padright(99,'-')
@@ -94,9 +95,9 @@ while($run -eq "y") {
         #Output Option
         $outputSelector = Read-Host -Prompt "Would you like to export results? [y/n]"
         if($outputSelector -eq "y") {
-           $user | Select -Property DistinguishedName, Enabled, GivenName, Name, ObjectClass, ObjectGUID, SamAccountName, SID, UserPrincipalName | Export-Csv -Delimiter ',' -Path .\Exports\'Users&Groups'\$MID-$date.csv -NoTypeInformation
+           $user | Select -Property DistinguishedName, Enabled, GivenName, Name, ObjectClass, ObjectGUID, SamAccountName, SID, UserPrincipalName | Export-Csv -Delimiter ',' -Path .\Exports\'Users&Groups'\$ID-$date.csv -NoTypeInformation
            if($userOption1 -eq "y") {
-               $groupsSplit | Select-Object @{Name='Group Name';Expression={$_}} | Export-Csv -Delimiter ',' -Path .\Exports\'Users&Groups'\$MID-Groups-$date.csv -NoTypeInformation
+               $groupsSplit | Select-Object @{Name='Group Name';Expression={$_}} | Export-Csv -Delimiter ',' -Path .\Exports\'Users&Groups'\$ID-Groups-$date.csv -NoTypeInformation
            }
 
         }
@@ -153,8 +154,8 @@ while($run -eq "y") {
 
     #7
     if($selector -eq "7") {
-        $MID = Read-Host -Prompt "Enter the MID"
-        $userAttrib = Get-AdReplicationAttributeMetadata -Object (Get-AdUser $MID) -Server PRCSADDSDC1 -Properties *  -IncludeDeletedObjects –ShowAllLinkedValues | Select -Property LastOriginatingChangeTime, AttributeName, AttributeValue, LastOriginatingChangeDirectoryServerIdentity, LastOriginatingChangeUsn, LastOriginatingDeleteTime, LocalChangeUsn, Object, Server, Version | Sort-Object -Property LastOriginatingChangeTime | Out-GridView
+        $ID = Read-Host -Prompt "Enter the ID"
+        $userAttrib = Get-AdReplicationAttributeMetadata -Object (Get-AdUser $ID) -Properties *  -IncludeDeletedObjects –ShowAllLinkedValues | Select -Property LastOriginatingChangeTime, AttributeName, AttributeValue, LastOriginatingChangeDirectoryServerIdentity, LastOriginatingChangeUsn, LastOriginatingDeleteTime, LocalChangeUsn, Object, Server, Version | Sort-Object -Property LastOriginatingChangeTime | Out-GridView
 
         echo $userAttrib
         Write-Host $item2.padright(99,'-')     
@@ -163,14 +164,14 @@ while($run -eq "y") {
         #Output Option
         $outputSelector = Read-Host -Prompt "Would you like to export results? [y/n]"
         if($outputSelector -eq "y") {
-           $userAttrib | Select -Property LastOriginatingChangeTime, AttributeName, AttributeValue, LastOriginatingChangeDirectoryServerIdentity, LastOriginatingChangeUsn, LastOriginatingDeleteTime, LocalChangeUsn, Object, Server, Version | Sort-Object -Property LastOriginatingChangeTime  | Export-Csv -Delimiter ',' -Path .\Exports\'Users&Groups'\$MID-UserChanges-$date.csv -NoTypeInformation
+           $userAttrib | Select -Property LastOriginatingChangeTime, AttributeName, AttributeValue, LastOriginatingChangeDirectoryServerIdentity, LastOriginatingChangeUsn, LastOriginatingDeleteTime, LocalChangeUsn, Object, Server, Version | Sort-Object -Property LastOriginatingChangeTime  | Export-Csv -Delimiter ',' -Path .\Exports\'Users&Groups'\$ID-UserChanges-$date.csv -NoTypeInformation
         }
     }
 
     #8
     if($selector -eq "8") {
         $GID = Read-Host -Prompt "Enter the GID"
-        $groupAttrib = Get-AdReplicationAttributeMetadata -Object (Get-ADGroup $GID) -Server PRCSADDSDC1 -Properties * -IncludeDeletedObjects –ShowAllLinkedValues | Sort-Object -Property LastOriginatingChangeTime | Out-GridView
+        $groupAttrib = Get-AdReplicationAttributeMetadata -Object (Get-ADGroup $GID) -Properties * -IncludeDeletedObjects –ShowAllLinkedValues | Sort-Object -Property LastOriginatingChangeTime | Out-GridView
 
         echo $groupAttrib
         Write-Host $item2.padright(99,'-')     
